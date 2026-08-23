@@ -240,6 +240,7 @@ screen_home_data_t::screen_home_data_t()
         sb.append_string(PrinterModelInfo::current().id_str);
         sb.append_string(" ");
 #endif
+        sb.append_string("lw36-");
         sb.append_string(version::project_version);
         sb.append_string(version::project_version_suffix_short);
 #if DEVELOPER_MODE()
