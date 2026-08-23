@@ -139,6 +139,10 @@
 #if HAS_INDX()
     #include <tool/hotend/hotend/indx_hotend.hpp>
 #endif
+#include <option/has_nozzle_cleaner.h>
+#if HAS_NOZZLE_CLEANER() && HAS_INDX()
+    #include <nozzle_cleaner.hpp>
+#endif
 
 #if HAS_DWARF()
     #include <puppies/Dwarf.hpp>
@@ -2366,6 +2370,10 @@ static void _server_print_loop(void) {
 #if HAS_WASTEBIN_FILL_TRACKING()
         // Fresh print: reset the per-print pellet/toolchange progress counter.
         WastebinWatcher::instance().reset_print_progress();
+#endif
+#if HAS_NOZZLE_CLEANER() && HAS_INDX()
+        // Fresh print: forget toolchanges counted towards the deep-clean interval so far.
+        nozzle_cleaner::reset_deep_clean_progress();
 #endif
 #if HAS_MMU2()
         server.mmu_maintenance_checked = false;

@@ -1028,6 +1028,9 @@ struct CurrentStore
     StoreItem<float, defaults::nozzle_cleaner_x_origin_offset, ItemFlag::hw_config, journal::hash("Nozzle cleaner X origin offset")> nozzle_cleaner_x_origin_offset;
     StoreItem<float, defaults::nozzle_cleaner_y_origin_offset, ItemFlag::hw_config, journal::hash("Nozzle cleaner Y origin offset")> nozzle_cleaner_y_origin_offset;
 
+    /// Every Nth toolchange onto a given physical tool runs a deep clean instead of the regular one. 0 = disabled.
+    StoreItem<uint8_t, 0, ItemFlag::features, journal::hash("Nozzle cleaner deep clean interval")> nozzle_cleaner_deep_clean_interval;
+
 #endif
 
 #if HAS_LOADCELL()

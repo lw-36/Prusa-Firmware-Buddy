@@ -294,6 +294,20 @@ MI_NOZZLE_CLEANER_Y_OFFSET::MI_NOZZLE_CLEANER_Y_OFFSET()
 void MI_NOZZLE_CLEANER_Y_OFFSET::OnClick() {
     config_store().nozzle_cleaner_y_origin_offset.set(value());
 }
+
+static constexpr NumericInputConfig nozzle_cleaner_deep_clean_interval_spin_config = {
+    .min_value = 0,
+    .max_value = 99,
+    .special_value = 0,
+    .special_value_str = N_("Off"),
+};
+
+MI_NOZZLE_CLEANER_DEEP_CLEAN_INTERVAL::MI_NOZZLE_CLEANER_DEEP_CLEAN_INTERVAL()
+    : WiSpin(config_store().nozzle_cleaner_deep_clean_interval.get(), nozzle_cleaner_deep_clean_interval_spin_config, _(label), nullptr, is_enabled_t::yes, is_hidden_t::no) {}
+
+void MI_NOZZLE_CLEANER_DEEP_CLEAN_INTERVAL::OnClick() {
+    config_store().nozzle_cleaner_deep_clean_interval.set(static_cast<uint8_t>(value()));
+}
 #endif
 
 /*****************************************************************************/

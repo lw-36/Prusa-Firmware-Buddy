@@ -163,6 +163,18 @@ public:
 protected:
     virtual void OnClick() override;
 };
+
+/// Wastebin submenu: every Nth toolchange onto a given tool runs a deep clean instead of the
+/// regular one. 0 = disabled.
+class MI_NOZZLE_CLEANER_DEEP_CLEAN_INTERVAL : public WiSpin {
+    static constexpr const char *const label = N_("Deep Clean Interval");
+
+public:
+    MI_NOZZLE_CLEANER_DEEP_CLEAN_INTERVAL();
+
+protected:
+    virtual void OnClick() override;
+};
 #endif
 
 class MI_MESH_BED : public IWindowMenuItem {
