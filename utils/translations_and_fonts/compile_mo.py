@@ -2,6 +2,7 @@
 """Compile a .po into a .mo, dropping msgids absent from the firmware binary."""
 
 import argparse
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -27,11 +28,17 @@ def main():
         pofile[:] = [e for e in pofile if e.msgid.encode() in blob]
 
     # polib doesn't build a hash table so we need to call msgfmt here.
-    with tempfile.NamedTemporaryFile() as tmp:
-        pofile.save(tmp.name)
-        subprocess.run(['msgfmt', tmp.name, '-o',
+    # The temp file is closed (not just opened) before polib reopens it by
+    # path, since Windows disallows opening a file that's already held open.
+    tmp_fd, tmp_path = tempfile.mkstemp()
+    os.close(tmp_fd)
+    try:
+        pofile.save(tmp_path)
+        subprocess.run(['msgfmt', tmp_path, '-o',
                         str(args.output)],
                        check=True)
+    finally:
+        os.unlink(tmp_path)
 
 
 if __name__ == '__main__':
