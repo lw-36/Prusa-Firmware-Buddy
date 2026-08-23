@@ -2,8 +2,10 @@
 #include "tool_offset.hpp"
 #include "dock_position.hpp"
 #include "utils/variant_utils.hpp"
+#include <option/has_crash_detection.h>
 #include <option/has_toolchanger.h>
 #include <tool_index.hpp>
+#include <bsod/bsod.h>
 
 #if HAS_TOOLCHANGER()
     #include "Marlin/src/module/stepper.h"
@@ -14,9 +16,9 @@
     #include <puppies/Dwarf.hpp>
     #include <puppies/PuppyModbus.hpp>
 
-    #if ENABLED(CRASH_RECOVERY)
+    #if HAS_CRASH_DETECTION()
         #include "../../feature/prusa/crash_recovery.hpp"
-    #endif /*ENABLED(CRASH_RECOVERY)*/
+    #endif
 
     #include <config_store/store_instance.hpp>
 
@@ -25,6 +27,10 @@ LOG_COMPONENT_DEF(PrusaToolChanger, logging::Severity::debug);
 using namespace buddy::puppies;
 
 static_assert(EXTRUDERS == dwarfs.size());
+
+bool PrusaToolChangerUtils::is_pos_in_toolchange_area(const xy_pos_t &pos) {
+    return pos.y > SAFE_Y_WITH_TOOL;
+}
 
 float PrusaToolChangerUtils::limit_stealth_feedrate(float feedrate) {
     // If the HWLIMIT_STEALTH_MAX_FEEDRATE changes, this function needs to be revisited
@@ -125,15 +131,15 @@ void PrusaToolChangerUtils::autodetect_active_tool(PuppyModbus &bus) {
 }
 
 void PrusaToolChangerUtils::request_active_switch(Dwarf *new_dwarf) {
-    assert(request_toolchange == false && "Repeated dwarf switch request");
+    debug_assert(request_toolchange == false && "Repeated dwarf switch request");
     request_toolchange_dwarf = new_dwarf;
     request_toolchange = true;
     if (wait([this]() { return !this->request_toolchange.load(); }, WAIT_TIME_TOOL_SELECT) == false) {
-    #if ENABLED(CRASH_RECOVERY)
+    #if HAS_CRASH_DETECTION()
         if (crash_s.get_state() == Crash_s::TRIGGERED_AC_FAULT) {
             return; // Fail silently, so powerpanic can work
         }
-    #endif /*ENABLED(CRASH_RECOVERY)*/
+    #endif
         toolchanger_error("Tool switch failed");
     }
 }
@@ -269,10 +275,14 @@ void PrusaToolChangerUtils::save_tool_info() {
     }
 }
 
+void PrusaToolChangerUtils::save_tool_offset(PhysicalToolIndex tool) {
+    const auto &offset = hotend_offset[tool];
+    config_store().set_tool_offset(tool, { .x = offset.x, .y = offset.y, .z = offset.z });
+}
+
 void PrusaToolChangerUtils::save_tool_offsets() {
     for (auto tool : PhysicalToolIndex::all()) {
-        const auto &offset = hotend_offset[tool];
-        config_store().set_tool_offset(tool, { .x = offset.x, .y = offset.y, .z = offset.z });
+        save_tool_offset(tool);
     }
 }
 

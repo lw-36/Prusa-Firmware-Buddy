@@ -56,14 +56,18 @@ public:
     static constexpr float DOCK_SAFE_Y_OFFSET = 28.6f; ///< Collision-free distance in front of dock [mm]
     // Absolute safe Y positions (computed from default dock Y, used by external code for boundary checks)
     static constexpr auto SAFE_Y_WITH_TOOL = DOCK_DEFAULT_Y_MM + DOCK_SAFE_Y_OFFSET;
+        #if PRINTER_IS_PRUSA_COREONEL()
+    static constexpr float DOCK_UNLOCK_Y_OFFSET = 6.6f; ///< Y offset for the unlock position [mm]
+        #else
     static constexpr float DOCK_UNLOCK_Y_OFFSET = 10.6f; ///< Y offset for the unlock position [mm]
+        #endif
     static constexpr float DOCK_BACKOFF_Y_OFFSET = 50.0f; ///< Y back-off in front of the dock after parking, to clear it for manual access (tool_return_t::dock_backoff) [mm]
 
     // E-axis lock/unlock mechanism
     static constexpr float E_WIGGLE_DISTANCE = 0.27f; ///< Tooth alignment wiggle distance [mm]
     static constexpr float E_PARTIAL_UNLOCK_DISTANCE = 1.3f; ///< Partial unlock, head still holds nozzle [mm]
     static constexpr float E_FULL_OPEN_DISTANCE = 11.2f; ///< Full open distance [mm]
-    static constexpr float E_FULL_CLOSE_DISTANCE = 10.5f; ///< Full lock distance [mm]
+    static constexpr float E_FULL_CLOSE_DISTANCE = 12.3f; ///< Full lock distance [mm]
 
     // E-axis motor currents for lock/unlock
     static constexpr uint16_t E_WIGGLE_CURRENT_MA = 200; ///< Low current for safe tooth engagement [mA]
@@ -117,6 +121,8 @@ public:
     #endif
     /// Feedrate for moves around dock
     static float limit_stealth_feedrate(float feedrate);
+
+    static bool is_pos_in_toolchange_area(const xy_pos_t &pos);
 
 public:
     PrusaToolChangerUtils();
@@ -219,7 +225,7 @@ public:
     bool autodetect_toolchanger_enabled();
     /**
      * @brief Get picked and parked states and detect which tool is active.
-     * Modifies parked, picked and picked_dwarf.
+     * Modifies picked_dwarf and picked_update.
      */
     void autodetect_active_tool(buddy::puppies::PuppyModbus &);
 

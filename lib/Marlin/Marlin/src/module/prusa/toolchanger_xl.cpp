@@ -3,7 +3,9 @@
 #include "module/tool_change.h"
 #include "utils/overloaded_visitor.hpp"
 
+#include <option/has_crash_detection.h>
 #include <option/has_toolchanger.h>
+#include <bsod/bsod.h>
 #if HAS_TOOLCHANGER()
     #include "Marlin/src/module/stepper.h"
     #include "Marlin/src/module/motion.h"
@@ -18,11 +20,12 @@
     #include <pause_stubbed.hpp>
     #include "module/temperature.h" // for fan control
     #include <mapi/motion.hpp>
+    #include <mapi/feedrates/standard_feedrates.hpp>
     #include <raii/scope_guard.hpp>
 
-    #if ENABLED(CRASH_RECOVERY)
+    #if HAS_CRASH_DETECTION()
         #include "../../feature/prusa/crash_recovery.hpp"
-    #endif /*ENABLED(CRASH_RECOVERY)*/
+    #endif
 
     #if DISABLED(ARC_SUPPORT)
         #error "toolchanger requires ARC_SUPPORT"
@@ -31,6 +34,11 @@
     #include <option/has_auto_retract.h>
     #if HAS_AUTO_RETRACT()
         #include <feature/auto_retract/auto_retract.hpp>
+    #endif
+
+    #include <option/has_nozzle_thermal_compensation.h>
+    #if HAS_NOZZLE_THERMAL_COMPENSATION()
+        #include <feature/nozzle_thermal_compensation/nozzle_thermal_compensation.hpp>
     #endif
 
 LOG_COMPONENT_REF(PrusaToolChanger);
@@ -105,7 +113,7 @@ static void plan_arc2(const xy_pos_t &dest, const xy_pos_t &center, const feedRa
         feedRate_t orig_feedrate = feedrate_mm_s;
         feedrate_mm_s = fr;
 
-        xy_float_t offset = center - current_position;
+        xy_float_t offset = center - current_position.xy();
         plan_arc(xyze_dest, offset, (current_position.x > xyze_dest.x), 0);
 
         feedrate_mm_s = orig_feedrate;
@@ -183,14 +191,14 @@ bool PrusaToolChanger::pick_any_tool(tool_return_t return_type, xyz_pos_t return
 }
 
 bool PrusaToolChanger::check_emergency_stop() {
-    #if ENABLED(CRASH_RECOVERY)
+    #if HAS_CRASH_DETECTION()
     if (crash_s.get_state() == Crash_s::TRIGGERED_AC_FAULT) {
         return true; // Powerpanic happened, do not move and quit as soon as possible
     }
     if (quick_stopped) {
         return true; // Movements quick stoped, avoid errors that result from interrupted tool-change moves
     }
-    #endif /*ENABLED(CRASH_RECOVERY)*/
+    #endif
     return false;
 }
 
@@ -224,7 +232,7 @@ bool PrusaToolChanger::tool_change(const std::variant<PhysicalToolIndex, NoTool>
     }
 
     if (!is_toolchanger_enabled()) {
-        if (raw_new_tool == active_extruder) {
+        if (new_tool == PhysicalToolIndex::currently_selected()) {
             return true; // Allow singletool printer to change to tool 0
         }
         toolchanger_error("Toolchanger not enabled");
@@ -259,17 +267,17 @@ bool PrusaToolChanger::tool_change(const std::variant<PhysicalToolIndex, NoTool>
     //  and reset on return from this function
     const bool levelling_active = planner.leveling_active;
     block_tool_check = true;
-    #if ENABLED(CRASH_RECOVERY)
+    #if HAS_CRASH_DETECTION()
     // Mark toolchange in progress first, to be consistent if ISR comes
     crash_s.set_toolchange_in_progress(true, levelling_active);
-    #endif /*ENABLED(CRASH_RECOVERY)*/
+    #endif
     conf_restorer.sample();
     set_bed_leveling_enabled(false);
     ScopeGuard resetter = [&] {
         block_tool_check = false;
-    #if ENABLED(CRASH_RECOVERY)
+    #if HAS_CRASH_DETECTION()
         crash_s.set_toolchange_in_progress(false, levelling_active);
-    #endif /*ENABLED(CRASH_RECOVERY)*/
+    #endif
         conf_restorer.restore_clear();
         set_bed_leveling_enabled(levelling_active);
         picked_update = false; // Wait for update before checking toolfall
@@ -280,9 +288,13 @@ bool PrusaToolChanger::tool_change(const std::variant<PhysicalToolIndex, NoTool>
     if (new_dwarf != nullptr) {
         new_hotend_offset = hotend_offset[new_dwarf->dwarf_index()];
     } else {
-        new_hotend_offset.reset();
+        new_hotend_offset = {};
     }
     const xyz_pos_t tool_offset_diff = hotend_currently_applied_offset - new_hotend_offset; ///< Difference between offset of new and old tools
+    #if HAS_NOZZLE_THERMAL_COMPENSATION()
+    ///< Thermal Z term of the outgoing tool, read before active_extruder switches below
+    const float thermal_z_offset_before = buddy::nozzle_thermal_compensation::current_elongation_vs_reference_mm();
+    #endif
 
     if (new_dwarf != old_dwarf) {
         // Ensure minimal feedrate for movements
@@ -327,7 +339,7 @@ bool PrusaToolChanger::tool_change(const std::variant<PhysicalToolIndex, NoTool>
     // Disable print fan on old dwarf, fan on new dwarf will be enabled by marlin
     // todo: remove this when multiple fans are implemented properly
     if (old_dwarf != nullptr) {
-        Fans::print(old_dwarf->dwarf_index()).set_pwm(0);
+        Fans::print(old_dwarf->tool_index()).set_pwm(0);
     }
 
     if (new_dwarf != old_dwarf) {
@@ -356,6 +368,13 @@ bool PrusaToolChanger::tool_change(const std::variant<PhysicalToolIndex, NoTool>
 
         // update return_position to the new working offset
         return_position += tool_offset_diff;
+    #if HAS_NOZZLE_THERMAL_COMPENSATION()
+        // The two tools run at their own temperatures, so their nozzles are not the same length.
+        // return_position is native, captured under the outgoing tool's term; re-express it under
+        // the incoming one so the head returns to the same commanded Z rather than the same
+        // carriage Z. The delta rides the return move below.
+        return_position.z += buddy::nozzle_thermal_compensation::current_elongation_vs_reference_mm() - thermal_z_offset_before;
+    #endif
         // Prevent a move outside physical bounds
         apply_motion_limits(return_position);
 
@@ -389,7 +408,7 @@ bool PrusaToolChanger::tool_change(const std::variant<PhysicalToolIndex, NoTool>
 }
 
 bool PrusaToolChanger::check_skipped_step() {
-    #if ENABLED(CRASH_RECOVERY)
+    #if HAS_CRASH_DETECTION()
     if (crash_s.get_state() == Crash_s::TRIGGERED_TOOLCRASH) {
         // Force rehome
         axes_home_level[X_AXIS] = AxisHomeLevel::not_homed;
@@ -401,13 +420,14 @@ bool PrusaToolChanger::check_skipped_step() {
             return false;
         }
     }
-    #endif /*ENABLED(CRASH_RECOVERY)*/
+    #endif
 
     return true;
 }
 
-void PrusaToolChanger::crash_deselect_dwarf() {
-    if (active_extruder != PrusaToolChanger::MARLIN_NO_TOOL_PICKED) {
+    #if HAS_TOOL_CRASH_RECOVERY()
+void PrusaToolChanger::crash_deselect_tool() {
+    if (PhysicalToolIndex::currently_selected_opt().has_value()) {
         prusa_toolchanger.request_active_switch(nullptr); // Deselect dwarf
         const uint8_t old_tool_index = active_extruder;
         active_extruder = PrusaToolChanger::MARLIN_NO_TOOL_PICKED; // Mark no tool for Marlin
@@ -416,6 +436,7 @@ void PrusaToolChanger::crash_deselect_dwarf() {
         update_software_endstops(Z_AXIS, old_tool_index, PrusaToolChanger::MARLIN_NO_TOOL_PICKED);
     }
 }
+    #endif
 
 void PrusaToolChanger::toolcheck_enable() {
     const auto selected_tool = PhysicalToolIndex::currently_selected();
@@ -433,7 +454,7 @@ void PrusaToolChanger::toolcheck_enable() {
 }
 
 void PrusaToolChanger::toolcrash() {
-    #if ENABLED(CRASH_RECOVERY)
+    #if HAS_CRASH_DETECTION()
     if (crash_s.is_active() && (crash_s.get_state() == Crash_s::PRINTING)) {
         crash_s.set_state(Crash_s::TRIGGERED_TOOLCRASH); // Trigger recovery process
         return;
@@ -449,14 +470,14 @@ void PrusaToolChanger::toolcrash() {
         || quick_stopped) {
         return; // Ignore
     }
-    #endif /*ENABLED(CRASH_RECOVERY)*/
+    #endif
 
     // Can happen if toolchange is a part of replay, would need a bigger change in crash_recovery.cpp
     toolchanger_error("Tool crashed");
 }
 
 void PrusaToolChanger::toolfall() {
-    #if ENABLED(CRASH_RECOVERY)
+    #if HAS_CRASH_DETECTION()
     if (crash_s.is_active() && (crash_s.get_state() == Crash_s::PRINTING)) {
         crash_s.set_state(Crash_s::TRIGGERED_TOOLFALL);
         return;
@@ -466,7 +487,7 @@ void PrusaToolChanger::toolfall() {
         || (crash_s.get_state() == Crash_s::IDLE)) { // Print ended
         return;
     }
-    #endif /*ENABLED(CRASH_RECOVERY)*/
+    #endif
 
     // Can be called when starting the print, not a big problem
     // Can happen if tool falls of during recovery, homing or reheating, would need a bigger change in crash_recovery.cpp
@@ -499,17 +520,20 @@ bool PrusaToolChanger::purge_tool(PhysicalToolIndex tool) {
     // extrude some filament, park&pick it again, to wipe it
     auto orig_e_pos = current_position.e;
 
+    // current filament type
+    const auto filament = FilamentType::for_current_tool_heuristic();
+
     // extrude
-    mapi::extruder_move(ADVANCED_PAUSE_PURGE_LENGTH, ADVANCED_PAUSE_PURGE_FEEDRATE);
+    mapi::extruder_move(ADVANCED_PAUSE_PURGE_LENGTH, buddy::standard_feedrates::extruder(buddy::standard_feedrates::Extruder::advanced_pause_purge, filament));
 
     #if HAS_AUTO_RETRACT()
     // Only retract if HAS_AUTO_RETRACT — otherwise the retract would
     // leave a permanent gap (the planner has no record of the retract due to
     // the sync_e_position_to below).
-    mapi::extruder_move(-PAUSE_PARK_RETRACT_LENGTH, PAUSE_PARK_RETRACT_FEEDRATE);
+    mapi::extruder_move(-STANDARD_RETRACT_LENGTH, buddy::standard_feedrates::extruder(buddy::standard_feedrates::Extruder::retract, filament));
 
     // The retraction must be deretracted though, otherwise we would have a hole in the print
-    buddy::auto_retract().set_retracted_distance(tool, PAUSE_PARK_RETRACT_LENGTH);
+    buddy::auto_retract().set_retracted_distance(tool, STANDARD_RETRACT_LENGTH);
     #endif
 
     planner.synchronize();
@@ -522,6 +546,11 @@ bool PrusaToolChanger::purge_tool(PhysicalToolIndex tool) {
 
     // restore fan speed
     Fans::print(tool).set_pwm(prev_pwm);
+
+    // park() and pickup() restore the planner jerk and acceleration from conf_restorer
+    // so it must be sampled before calling them, and restored after
+    conf_restorer.sample();
+    ScopeGuard conf_resetter = [&] { conf_restorer.restore_clear(); };
 
     if (!park(dwarf)) {
         return false;
@@ -560,9 +589,9 @@ void PrusaToolChanger::loop(bool printing, bool paused) {
 
         // Check that all tools are where they should be
         if (printing // Only while printing
-    #if ENABLED(CRASH_RECOVERY)
+    #if HAS_CRASH_DETECTION()
             && (crash_s.get_state() == Crash_s::PRINTING) // Do not check during crash recovery
-    #endif /*ENABLED(CRASH_RECOVERY)*/
+    #endif
             && !Pause::Instance().get_mode().has_value()) { // Do not check during filament change
             bool all_good = true;
             if (picked != active) {
@@ -716,7 +745,7 @@ bool PrusaToolChanger::align_locks() {
         return true; // It would catapult picked dwarf
     }
 
-    #if ENABLED(CRASH_RECOVERY)
+    #if HAS_CRASH_DETECTION()
     // Disable crash detection, would result in bsod, this is followed by homing anyway
     Crash_Temporary_Deactivate ctd;
     #endif
