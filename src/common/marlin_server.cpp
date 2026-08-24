@@ -3444,6 +3444,9 @@ void unpark_prime() {
     }
 
     nozzle_cleaner::load_and_execute(nozzle_cleaner::Sequence::purge_clean);
+    #if HAS_INDX()
+    nozzle_cleaner::load_and_execute(nozzle_cleaner::Sequence::deep_clean);
+    #endif
     sync_e_position_to(server.resume.pos.e);
 }
 #endif // HAS_NOZZLE_CLEANER()
