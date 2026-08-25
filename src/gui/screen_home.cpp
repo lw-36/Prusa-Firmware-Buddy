@@ -236,11 +236,10 @@ screen_home_data_t::screen_home_data_t()
         // #error dead code found by automatic analyses (see BFW-5461)
         sb.append_string("SIGNATURE OAK ");
 #else
-        sb.append_string("PRUSA ");
+        sb.append_string("lw36 ");
         sb.append_string(PrinterModelInfo::current().id_str);
         sb.append_string(" ");
 #endif
-        sb.append_string("lw36-");
         sb.append_string(version::project_version);
         sb.append_string(version::project_version_suffix_short);
 #if DEVELOPER_MODE()
