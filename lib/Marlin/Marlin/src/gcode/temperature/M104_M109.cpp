@@ -41,6 +41,7 @@
 #endif
 
 #include "marlin_server.hpp"
+#include <hotend_temp_override.hpp>
 
 /** \addtogroup G-Codes
  * @{
@@ -72,7 +73,7 @@ void GcodeSuite::M104() {
       singlenozzle_temp[tool->to_raw()] = temp;
       if (!stdext::holds_value(PhysicalToolIndex::currently_selected(), *tool)) return;
     #endif
-    thermalManager.setTargetHotend(temp, *tool);
+    thermalManager.setTargetHotend(hotend_temp_override::resolve_gcode_target_temp(*tool, temp), *tool);
   }
 
   if(parser.seenval('D')) {
@@ -120,6 +121,10 @@ void M109_no_parser(PhysicalToolIndex tool, const M109Flags& flags) {
 
   if (DEBUGGING(DRYRUN)) return;
 
+  if (flags.early_return_temperature.has_value()) {
+    hotend_temp_override::note_early_return_temp(tool, static_cast<int16_t>(*flags.early_return_temperature));
+  }
+
   const bool no_wait_for_cooling = flags.wait_heat && !flags.wait_heat_or_cool;
   const bool set_temp = no_wait_for_cooling || flags.wait_heat_or_cool;
   if (set_temp) {
@@ -128,7 +133,7 @@ void M109_no_parser(PhysicalToolIndex tool, const M109Flags& flags) {
       singlenozzle_temp[tool.to_raw()] = temp;
       if (!stdext::holds_value(PhysicalToolIndex::currently_selected(), tool)) return;
     #endif
-    thermalManager.setTargetHotend(temp, tool);
+    thermalManager.setTargetHotend(hotend_temp_override::resolve_gcode_target_temp(tool, temp), tool);
     if(flags.display_temp.has_value()) {
       // Override display_temp set by setTargetHotend
       // This is a legit use

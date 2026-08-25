@@ -143,6 +143,7 @@
 #if HAS_NOZZLE_CLEANER() && HAS_INDX()
     #include <nozzle_cleaner.hpp>
 #endif
+#include <hotend_temp_override.hpp>
 
 #if HAS_DWARF()
     #include <puppies/Dwarf.hpp>
@@ -2375,6 +2376,8 @@ static void _server_print_loop(void) {
         // Fresh print: forget toolchanges counted towards the deep-clean interval so far.
         nozzle_cleaner::reset_deep_clean_progress();
 #endif
+        // Fresh print: forget any user nozzle-temperature overrides from a previous print.
+        hotend_temp_override::reset();
 #if HAS_MMU2()
         server.mmu_maintenance_checked = false;
 #endif
@@ -3960,6 +3963,7 @@ static void _server_set_var(const Request &request) {
         auto &physical_tool_data = marlin_vars().hotend(tool);
         if (reinterpret_cast<uintptr_t>(&physical_tool_data.target_nozzle) == variable_identifier) {
             physical_tool_data.target_nozzle = static_cast<int16_t>(request.set_variable.uint32_value);
+            hotend_temp_override::note_user_override(tool, physical_tool_data.target_nozzle);
             thermalManager.setTargetHotend(physical_tool_data.target_nozzle, tool);
             return;
         }
