@@ -9129,10 +9129,10 @@ msgstr "Корпус XL"
 
 #: tmp_error_headers/error_list.hpp:282
 msgid ""
-"XL-CAN bridge detected. Printer type has been set to Original Prusa XL+. "
+"XL-CAN bridge detected. Printer type has been set to Prusa XL+. "
 "Settings have been updated."
 msgstr ""
-"Виявлено XL-CAN bridge. Тип принтера встановлено на Original Prusa XL+. "
+"Виявлено XL-CAN bridge. Тип принтера встановлено на Prusa XL+. "
 "Налаштування оновлено."
 
 #: tmp_error_headers/error_list.hpp:296

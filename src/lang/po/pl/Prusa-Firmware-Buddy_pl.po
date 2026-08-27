@@ -9175,10 +9175,10 @@ msgstr "XL Enclosure"
 
 #: tmp_error_headers/error_list.hpp:282
 msgid ""
-"XL-CAN bridge detected. Printer type has been set to Original Prusa XL+. "
+"XL-CAN bridge detected. Printer type has been set to Prusa XL+. "
 "Settings have been updated."
 msgstr ""
-"Wykryto most XL-CAN. Typ drukarki został ustawiony na Original Prusa XL+. "
+"Wykryto most XL-CAN. Typ drukarki został ustawiony na Prusa XL+. "
 "Ustawienia zostały zaktualizowane."
 
 #: tmp_error_headers/error_list.hpp:296

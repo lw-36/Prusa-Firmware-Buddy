@@ -9337,10 +9337,10 @@ msgstr "XLエンクロージャー"
 
 #: tmp_error_headers/error_list.hpp:282
 msgid ""
-"XL-CAN bridge detected. Printer type has been set to Original Prusa XL+. "
+"XL-CAN bridge detected. Printer type has been set to Prusa XL+. "
 "Settings have been updated."
 msgstr ""
-"XL-CAN bridgeガ ケンシュツサレマシタ.プリンタタイプガ Original Prusa XL+ ニ "
+"XL-CAN bridgeガ ケンシュツサレマシタ.プリンタタイプガ Prusa XL+ ニ "
 "セッテイサレマシタ.セッテイガ アップデートサレマシタ."
 
 #: tmp_error_headers/error_list.hpp:296
