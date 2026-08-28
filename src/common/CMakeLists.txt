@@ -10,6 +10,7 @@ if(BOARD IN_LIST BUDDY_BOARDS)
   target_sources(
     firmware
     PRIVATE adc.cpp
+            all_tools_quick_cooling_manager.cpp
             app_metrics.cpp
             appmain.cpp
             awdg.cpp
@@ -36,6 +37,7 @@ if(BOARD IN_LIST BUDDY_BOARDS)
             hardware_rng.cpp
             hardware_serial.cpp
             heap.cpp
+            hotend_temp_override.cpp
             hw_check.cpp
             hwio_pindef_check.cpp
             i2c.cpp

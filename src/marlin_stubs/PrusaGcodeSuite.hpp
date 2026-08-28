@@ -104,6 +104,7 @@ void M1985(); //< INDX tool offsets calibration
 
 #if HAS_INDX()
 void G750(); ///< Move to absolute X,Y position with nozzle cleaner origin offset
+void M1988(); //< Periodic nozzle clean on a single-color print
 #endif
 
 #ifdef PRINT_CHECKING_Q_CMDS
@@ -200,6 +201,10 @@ void M9202(); //< Clear precise homing calibration
 #endif
 
 void M9933(); //< Cork for tracking when gcode finished executing
+
+#if HAS_CRASH_DETECTION()
+void M9944(); ///< Execute G-Code interrupt
+#endif
 
 #if EXTRUDERS > 1
 void M9934(); ///< Multi filament change

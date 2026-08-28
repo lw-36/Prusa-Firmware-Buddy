@@ -354,6 +354,11 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
             PrusaGcodeSuite::M1987();
             break;
 #endif
+#if HAS_INDX()
+        case 1988:
+            PrusaGcodeSuite::M1988();
+            break;
+#endif
         case 9140:
             PrusaGcodeSuite::M9140();
             break;
@@ -381,6 +386,12 @@ bool GcodeSuite::process_parsed_command_custom(bool no_ok) {
         case 9933:
             PrusaGcodeSuite::M9933();
             break;
+
+#if HAS_CRASH_DETECTION()
+        case 9944:
+            PrusaGcodeSuite::M9944();
+            break;
+#endif
 
 #if EXTRUDERS > 1
         case 9934:

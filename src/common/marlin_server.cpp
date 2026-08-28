@@ -143,6 +143,7 @@
 #if HAS_NOZZLE_CLEANER() && HAS_INDX()
     #include <nozzle_cleaner.hpp>
 #endif
+#include <hotend_temp_override.hpp>
 
 #if HAS_DWARF()
     #include <puppies/Dwarf.hpp>
@@ -2266,7 +2267,7 @@ static void resuming_reheating() {
     // Crash recovery goes through recovering -> pause -> resuming phase
     // So this is the right moment to enqueue and execute the interrupt gcode.
     if (!print_state.gcode_interrupt_command.is_empty()) {
-        enqueue_gcode_printf(print_state.gcode_interrupt_command.gcode, (double)print_state.gcode_interrupt_command.parameter);
+        enqueue_gcode("M9944");
     }
 #endif
 
@@ -2375,6 +2376,8 @@ static void _server_print_loop(void) {
         // Fresh print: forget toolchanges counted towards the deep-clean interval so far.
         nozzle_cleaner::reset_deep_clean_progress();
 #endif
+        // Fresh print: forget any user nozzle-temperature overrides from a previous print.
+        hotend_temp_override::reset();
 #if HAS_MMU2()
         server.mmu_maintenance_checked = false;
 #endif
@@ -2444,7 +2447,7 @@ static void _server_print_loop(void) {
         if (prusa_toolchanger.is_toolchanger_enabled()) {
             METRIC_DEF(metric_dock_position, "dock_pos", METRIC_VALUE_CUSTOM, 0, METRIC_ENABLED);
             for (auto tool : PhysicalToolIndex::all().skip_all_disabled()) {
-                const xy_float_t pos = prusa_toolchanger.get_tool_dock_position(tool);
+                const xy_float_t pos = prusa_toolchanger.get_tool_dock_position(tool, false);
                 metric_record_custom(&metric_dock_position, ",tool=%u x=%.3f,y=%.3f", static_cast<unsigned int>(tool.to_raw()), (double)pos.x, (double)pos.y);
             }
         }
@@ -2669,9 +2672,7 @@ static void _server_print_loop(void) {
             break;
         }
 
-        // Clear the interrupt command AFTER it was successfully processed
-        // If there would be a nested crash during the execution, the interrupting gcode will be repeated
-        print_state.gcode_interrupt_command = {};
+        release_assert(print_state.gcode_interrupt_command.is_empty());
 
 #if HAS_CRASH_DETECTION()
         if (crash_s.get_state() == Crash_s::REPEAT_WAIT) {
@@ -3444,6 +3445,9 @@ void unpark_prime() {
     }
 
     nozzle_cleaner::load_and_execute(nozzle_cleaner::Sequence::purge_clean);
+    #if HAS_INDX()
+    nozzle_cleaner::load_and_execute(nozzle_cleaner::Sequence::deep_clean);
+    #endif
     sync_e_position_to(server.resume.pos.e);
 }
 #endif // HAS_NOZZLE_CLEANER()
@@ -3957,6 +3961,7 @@ static void _server_set_var(const Request &request) {
         auto &physical_tool_data = marlin_vars().hotend(tool);
         if (reinterpret_cast<uintptr_t>(&physical_tool_data.target_nozzle) == variable_identifier) {
             physical_tool_data.target_nozzle = static_cast<int16_t>(request.set_variable.uint32_value);
+            hotend_temp_override::note_user_override(tool, physical_tool_data.target_nozzle);
             thermalManager.setTargetHotend(physical_tool_data.target_nozzle, tool);
             return;
         }
@@ -4038,6 +4043,40 @@ FSMResponseVariant wait_for_response_variant(FSMAndPhase fsm_and_phase, uint32_t
 
 bool is_marlin_server_thread() {
     return osThreadGetId() == defaultTaskHandle;
+}
+
+// Secret function called from M9944
+void execute_gcode_interrupt() {
+    // Someone might get a dumb idea to call this internal g-code explicitly...
+    release_assert(!print_state.gcode_interrupt_command.is_empty());
+
+    const auto orig_offset = native_logical_offset();
+
+    ArrayStringBuilder<MAX_CMD_SIZE> sb;
+    print_state.gcode_interrupt_command.to_string(sb);
+    gcode.process_subcommands_now(const_cast<char *>(sb.str()));
+
+    // Clear the interrupt command AFTER it was successfully processed
+    // If there would be a nested crash during the execution, the interrupting gcode will be repeated
+    print_state.gcode_interrupt_command = {};
+
+    if (!planner.draining()) {
+        // Okay, so why we need this ugly thing:
+        // The gcode_interrupt could have executed a toolchange (for example bcs of spool join)
+        // at which point all of the resume positions need to be adjusted,
+        // because the new tool has a different tool offset
+        //
+        // It's very important that we do this with the correct target temperature,
+        // because tool offset also changes with that if HAS_NOZZLE_THERMAL_COMPENSATION
+        //
+        // BFW-9250
+
+        const XYZval<float, NativePosTag> delta = orig_offset - native_logical_offset();
+        server.resume.pos += delta;
+        crash_s.start_current_position += delta;
+        crash_s.crash_native_position += delta;
+        crash_s.crash_machine_position = to_machine_pos(to_native_pos(crash_s.crash_machine_position) + delta);
+    }
 }
 
 } // namespace marlin_server
