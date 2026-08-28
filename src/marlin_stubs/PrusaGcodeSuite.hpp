@@ -104,6 +104,7 @@ void M1985(); //< INDX tool offsets calibration
 
 #if HAS_INDX()
 void G750(); ///< Move to absolute X,Y position with nozzle cleaner origin offset
+void M1988(); //< Periodic nozzle clean on a single-color print
 #endif
 
 #ifdef PRINT_CHECKING_Q_CMDS
