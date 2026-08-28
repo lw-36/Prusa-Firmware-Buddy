@@ -40,6 +40,7 @@ This file is generated automatically so don't edit it directly
 - ModularBed: logging::Severity::info, src/puppies/modular_bed.cpp
 - Network: logging::Severity::info, lib/WUI/wui.cpp
 - Node: logging::Severity::info, src/puppy/honeybee_shared/cyphal_node.cpp
+- NozzleCleaner: logging::Severity::info, src/marlin_stubs/M1988.cpp
 - NozzleCleanerCalibration: logging::Severity::info, src/feature/indx_nozzle_cleaner_calibration/indx_nozzle_cleaner_calibration.cpp
 - NozzleCleanerLite: logging::Severity::info, src/feature/nozzle_cleaner_lite/nozzle_cleaner_lite.cpp
 - OpenPrintTag: logging::Severity::info, src/feature/openprinttag/detail/requests_base.cpp
