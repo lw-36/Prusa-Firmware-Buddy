@@ -8,14 +8,12 @@
 /// while still respecting a genuine change in what the gcode asks for that tool.
 ///
 /// A toolchange's per-tool cleanup/preheat sequence issues several different M104/M109 S-values in
-/// a row (e.g. a retraction-safe temp, an overshoot, then the real target), so comparing every
-/// individual request would mistake that ramp for a real change. Instead, the real, settled target
-/// temperature for a tool is identified structurally: PrusaSlicer's toolchange script always does
-/// `M109 C<target_temp>` (an early-return wait that doesn't change the target) immediately before
-/// `M104 S<target_temp>`. Only the M104 that reaffirms the value just waited for via M109's C
-/// parameter is compared against the tool's previous visit and gates the override; the earlier ramp
-/// steps (which, unlike target_temp, can be clamped/derived and so aren't reliably comparable) pass
-/// through unaffected.
+/// a row (e.g. a retraction-safe temp, an overshoot, then the real target). The real, settled
+/// target temperature for a tool is identified structurally: PrusaSlicer's toolchange script always
+/// does `M109 C<target_temp>` (an early-return wait that doesn't change the target) immediately
+/// before `M104 S<target_temp>`. Only the M104 that reaffirms the value just waited for via M109's
+/// C parameter - always the tool's real, unclamped target_temp - is compared against the tool's
+/// previous visit and gates the override; the earlier ramp steps pass straight through.
 namespace hotend_temp_override {
 
 /// Call when a user directly sets @p tool's target temperature (e.g. from the Tune menu).

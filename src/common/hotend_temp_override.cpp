@@ -37,8 +37,8 @@ void note_early_return_temp(PhysicalToolIndex tool, int16_t temp) {
 
 int16_t resolve_gcode_target_temp(PhysicalToolIndex tool, int16_t requested_temp) {
     if (pending_early_return_temp[tool] == requested_temp) {
-        // This M104 reaffirms the value just waited for via M109 C - the tool's real, settled
-        // target_temp for this visit (unlike the earlier ramp steps, never clamped/derived).
+        // This M104 reaffirms the value just waited for via M109 C - the tool's real, settled,
+        // unclamped target_temp for this visit.
         pending_early_return_temp[tool] = std::nullopt;
 
         if (settled_temp_of_last_visit[tool] == requested_temp) {
