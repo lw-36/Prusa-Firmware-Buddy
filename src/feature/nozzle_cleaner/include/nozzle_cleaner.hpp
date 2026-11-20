@@ -8,6 +8,10 @@
 #include <option/has_indx.h>
 #include <option/has_nozzle_cleaner.h>
 
+#if HAS_INDX()
+    #include <tool_index.hpp>
+#endif
+
 static_assert(HAS_NOZZLE_CLEANER(), "nozzle_cleaner.hpp included on a build without HAS_NOZZLE_CLEANER()");
 
 #if HAS_INDX()
@@ -109,5 +113,12 @@ bool is_loader_buffering();
 bool execute();
 
 void reset();
+
+#if HAS_INDX()
+/// Forgets all toolchange progress towards the deep-clean interval (see
+/// `nozzle_cleaner_deep_clean_interval`). Call once at the start of every print, so the interval
+/// always counts from that print's first toolchange.
+void reset_deep_clean_progress();
+#endif
 
 } // namespace nozzle_cleaner

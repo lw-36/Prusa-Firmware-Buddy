@@ -454,6 +454,11 @@ def bootstrap(include_integration):
     for dependency in dependencies:
         if recommended_version_is_available(dependency):
             continue
+        # The SDK installers are shell scripts; the build falls back to
+        # prebuilt NIC images.
+        if is_windows and re.match(r'esp[0-9]*-', dependency):
+            print(f'Skipping {dependency} (not supported on Windows)')
+            continue
         install_dependency(dependency)
 
     # also, install openocd config meant for customization

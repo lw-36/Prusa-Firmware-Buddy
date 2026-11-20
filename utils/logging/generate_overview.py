@@ -1,6 +1,5 @@
 import os
 import re
-import sys
 from pathlib import Path
 from collections import namedtuple
 
@@ -12,7 +11,10 @@ ComponentDefintion = namedtuple(
 
 
 def scan_file(file_path: Path):
-    with open(file_path, 'r') as f:
+    # A handful of vendored files aren't valid UTF-8 (e.g. a Latin-1 copyright symbol in an ST
+    # HAL template); replace what can't be decoded rather than failing the whole scan, since
+    # they're not going to contain a LOG_COMPONENT_DEF anyway.
+    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
         for line_idx, line in enumerate(f.readlines()):
             match = component_def_re.match(line)
             if not match:
@@ -29,13 +31,7 @@ def scan_directory(directory: Path):
             file_path = Path(os.path.join(root, file_name))
             if file_path.suffix not in ['.c', '.cpp']:
                 continue
-            try:
-                yield from scan_file(file_path)
-            except UnicodeDecodeError:
-                print(
-                    'Failed to decode %s as UTF-8. Please check the encoding.'
-                    % (file_path, ),
-                    file=sys.stderr)
+            yield from scan_file(file_path)
 
 
 def scan_project():
@@ -58,5 +54,5 @@ if __name__ == "__main__":
             f'- {component.component_name}: {component.lowest_severity}, {component_def_path}'
         ]
     doc_file = project_root / 'doc' / 'logging_components.md'
-    with open(doc_file, 'w') as f:
+    with open(doc_file, 'w', encoding='utf-8') as f:
         f.writelines(l + '\n' for l in doc)

@@ -68,5 +68,18 @@
                 "reveal": "silent",
             }
         },
+        {
+            "label": "Build coreone_indx_release_boot",
+            "type": "shell",
+            "command": "cmake --build build/coreone_indx_release_boot",
+            "windows": {
+                "command": "${workspaceFolder}/.dependencies/cmake-3.28.3/bin/cmake --build build/coreone_indx_release_boot",
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"]
+        },
     ]
 }
